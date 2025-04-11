@@ -3,19 +3,21 @@ pipeline {
 
   environment {
     LABS = credentials('labcreds')
-    PIPENV_PATH = '.venv/bin/pipenv'
-    PYTHON = 'python3.11'
+    PIPENV_PATH = '/bitnami/jenkins/home/.local/bin/pipenv'
   }
 
   stages {
     stage('Build') {
       steps {
         sh '''
-          $PYTHON -m venv .venv
-          .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install pipenv
-          $PIPENV_PATH --rm || true
-          $PIPENV_PATH install
+          # Install pipenv (safely bypassing system restrictions)
+          pip3 install --user --break-system-packages pipenv
+
+          # Remove any old environment
+          ${PIPENV_PATH} --rm || true
+
+          # Create new env with correct Python version
+          ${PIPENV_PATH} install --python 3.11
         '''
       }
     }
@@ -23,7 +25,7 @@ pipeline {
     stage('Test') {
       steps {
         sh '''
-          $PIPENV_PATH run pytest
+          ${PIPENV_PATH} run pytest
         '''
       }
     }

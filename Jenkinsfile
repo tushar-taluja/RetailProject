@@ -3,21 +3,27 @@ pipeline {
 
   environment {
     LABS = credentials('labcreds')
-    PIPENV_PATH = '/bitnami/jenkins/home/.local/bin/pipenv'
+    PYTHON = 'python3.11'
+    PIPENV_PATH = '.venv/bin/pipenv'
+    JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
+    PATH = "${env.JAVA_HOME}/bin:${env.PATH}:${env.WORKSPACE}/.venv/bin"
   }
 
   stages {
+    stage('Checkout') {
+      steps {
+        git branch: "${env.BRANCH_NAME}", credentialsId: 'gitcreds', url: 'https://github.com/rahulswami1717/RetailProject.git'
+      }
+    }
+
     stage('Build') {
       steps {
         sh '''
-          # Install pipenv (safely bypassing system restrictions)
-          pip3 install --user --break-system-packages pipenv
-
-          # Remove any old environment
-          ${PIPENV_PATH} --rm || true
-
-          # Create new env with correct Python version
-          ${PIPENV_PATH} install --python 3.11
+          echo "[Build] Setting up Python Virtual Environment"
+          $PYTHON -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install pipenv
+          $PIPENV_PATH install
         '''
       }
     }
@@ -25,24 +31,40 @@ pipeline {
     stage('Test') {
       steps {
         sh '''
-          ${PIPENV_PATH} run pytest
+          echo "[Test] Verifying JAVA_HOME: $JAVA_HOME"
+          java -version || echo "Java not found in PATH"
+          
+          echo "[Test] Running Pytest with Spark Tests"
+          $PIPENV_PATH run pytest || exit 1
         '''
       }
     }
 
     stage('Package') {
       steps {
-        sh 'zip -r retailproject.zip .'
+        sh '''
+          echo "[Package] Simulating packaging step (if any)"
+          mkdir -p dist
+          tar -czf dist/retailproject.tar.gz *.py || true
+        '''
       }
     }
 
     stage('Deploy') {
       steps {
         sh '''
-          sshpass -p $LABS_PSW scp -o StrictHostKeyChecking=no -r . \
-          $LABS_USR@g02.itversity.com:/home/itv005857/retailproject
+          echo "[Deploy] Simulating deployment step"
+          echo "Deploying artifact dist/retailproject.tar.gz to dummy server..."
+          # Simulate SCP or GCP CLI etc if needed
         '''
       }
+    }
+  }
+
+  post {
+    always {
+      echo 'Cleaning up...'
+      sh 'rm -rf .venv dist'
     }
   }
 }

@@ -3,18 +3,17 @@ pipeline {
 
   environment {
     LABS = credentials('labcreds')
+    PIPENV_HOME = '/bitnami/jenkins/home/.local/bin'
   }
 
   stages {
     stage('Build') {
       steps {
         sh '''
-          sudo apt-get update
-          sudo apt-get install -y pipx
-          pipx ensurepath
-          pipx install pipenv || true
-          ~/.local/bin/pipenv --rm || true
-          ~/.local/bin/pipenv install
+          curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+          ~/.local/bin/pip install --user pipenv
+          $PIPENV_HOME/pipenv --rm || true
+          $PIPENV_HOME/pipenv install
         '''
       }
     }
@@ -22,7 +21,7 @@ pipeline {
     stage('Test') {
       steps {
         sh '''
-          ~/.local/bin/pipenv run pytest
+          $PIPENV_HOME/pipenv run pytest
         '''
       }
     }

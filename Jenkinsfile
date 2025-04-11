@@ -1,70 +1,73 @@
 pipeline {
-  agent any
+    agent any
 
-  environment {
-    LABS = credentials('labcreds')
-    PYTHON = 'python3.11'
-    PIPENV_PATH = '.venv/bin/pipenv'
-    JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
-    PATH = "${env.JAVA_HOME}/bin:${env.PATH}:${env.WORKSPACE}/.venv/bin"
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        git branch: "${env.BRANCH_NAME}", credentialsId: 'gitcreds', url: 'https://github.com/rahulswami1717/RetailProject.git'
-      }
+    environment {
+        PYTHON = 'python3.11'
+        JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
+        PIPENV_PATH = '.venv/bin/pipenv'
     }
 
-    stage('Build') {
-      steps {
-        sh '''
-          echo "[Build] Setting up Python Virtual Environment"
-          $PYTHON -m venv .venv
-          .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install pipenv
-          $PIPENV_PATH install
-        '''
-      }
+    options {
+        timestamps()
     }
 
-    stage('Test') {
-      steps {
-        sh '''
-          echo "[Test] Verifying JAVA_HOME: $JAVA_HOME"
-          java -version || echo "Java not found in PATH"
-          
-          echo "[Test] Running Pytest with Spark Tests"
-          $PIPENV_PATH run pytest || exit 1
-        '''
-      }
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo '📦 Checking out code from Git...'
+                checkout scm
+                sh 'git fetch --all'
+                sh 'git reset --hard origin/${BRANCH_NAME}'
+                sh 'git log -1 --oneline'
+            }
+        }
+
+        stage('Setup Environment') {
+            steps {
+                echo '⚙️ Creating virtual environment and installing dependencies...'
+                sh '''
+                    ${PYTHON} -m venv .venv
+                    .venv/bin/pip install --upgrade pip
+                    .venv/bin/pip install pipenv
+                    ${PIPENV_PATH} install --dev
+                '''
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                echo '🧪 Running Pytest on Spark tests...'
+                sh '''
+                    export JAVA_HOME=${JAVA_HOME}
+                    export PATH=$JAVA_HOME/bin:$PATH
+                    ${PIPENV_PATH} run pytest
+                '''
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo '📦 Zipping project for packaging...'
+                sh 'zip -r retail_project_package.zip . -x ".venv/*" "*.git*"'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo '🚀 Deployment stage placeholder...'
+                // Add your actual deployment logic here
+                sh 'echo "Deployed RetailProject build from branch ${BRANCH_NAME}"'
+            }
+        }
     }
 
-    stage('Package') {
-      steps {
-        sh '''
-          echo "[Package] Simulating packaging step (if any)"
-          mkdir -p dist
-          tar -czf dist/retailproject.tar.gz *.py || true
-        '''
-      }
+    post {
+        success {
+            echo '✅ Build, Test & Deploy completed successfully.'
+        }
+        failure {
+            echo '❌ Build or tests failed. Please check logs.'
+        }
     }
-
-    stage('Deploy') {
-      steps {
-        sh '''
-          echo "[Deploy] Simulating deployment step"
-          echo "Deploying artifact dist/retailproject.tar.gz to dummy server..."
-          # Simulate SCP or GCP CLI etc if needed
-        '''
-      }
-    }
-  }
-
-  post {
-    always {
-      echo 'Cleaning up...'
-      sh 'rm -rf .venv dist'
-    }
-  }
 }

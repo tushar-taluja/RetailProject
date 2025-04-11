@@ -8,15 +8,22 @@ pipeline {
   stages {
     stage('Build') {
       steps {
-        sh 'pip3 install --user pipenv'
-        sh '/bitnami/jenkins/home/.local/bin/pipenv --rm || exit 0'
-        sh '/bitnami/jenkins/home/.local/bin/pipenv install'
+        sh '''
+          sudo apt-get update
+          sudo apt-get install -y pipx
+          pipx ensurepath
+          pipx install pipenv || true
+          ~/.local/bin/pipenv --rm || true
+          ~/.local/bin/pipenv install
+        '''
       }
     }
 
     stage('Test') {
       steps {
-        sh '/bitnami/jenkins/home/.local/bin/pipenv run pytest'
+        sh '''
+          ~/.local/bin/pipenv run pytest
+        '''
       }
     }
 
@@ -28,7 +35,10 @@ pipeline {
 
     stage('Deploy') {
       steps {
-        sh 'sshpass -p $LABS_PSW scp -o StrictHostKeyChecking=no -r . $LABS_USR@g02.itversity.com:/home/itv016333/retailproject'
+        sh '''
+          sshpass -p $LABS_PSW scp -o StrictHostKeyChecking=no -r . \
+          $LABS_USR@g02.itversity.com:/home/itv005857/retailproject
+        '''
       }
     }
   }

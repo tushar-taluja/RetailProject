@@ -3,17 +3,19 @@ pipeline {
 
   environment {
     LABS = credentials('labcreds')
-    PIPENV_HOME = '/bitnami/jenkins/home/.local/bin'
+    PIPENV_PATH = '.venv/bin/pipenv'
+    PYTHON = 'python3.11'
   }
 
   stages {
     stage('Build') {
       steps {
         sh '''
-          curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
-          ~/.local/bin/pip install --user pipenv
-          $PIPENV_HOME/pipenv --rm || true
-          $PIPENV_HOME/pipenv install
+          $PYTHON -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install pipenv
+          $PIPENV_PATH --rm || true
+          $PIPENV_PATH install
         '''
       }
     }
@@ -21,7 +23,7 @@ pipeline {
     stage('Test') {
       steps {
         sh '''
-          $PIPENV_HOME/pipenv run pytest
+          $PIPENV_PATH run pytest
         '''
       }
     }

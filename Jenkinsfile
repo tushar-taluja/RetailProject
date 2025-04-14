@@ -2,73 +2,62 @@ pipeline {
     agent any
 
     environment {
-        PYTHON = 'python3.11'
-        JAVA_HOME = '/usr/lib/jvm/java-11-openjdk-amd64'
-        PIPENV_PATH = '.venv/bin/pipenv'
-    }
-
-    options {
-        timestamps()
+        LABS = credentials('labcreds')
+        JAVA_HOME = '/opt/bitnami/java' // Set your JAVA_HOME path here.
+        PATH = "${env.JAVA_HOME}/bin:${env.PATH}" // Add Java binaries to PATH
     }
 
     stages {
-
-        stage('Checkout') {
+        stage('Setup Virtual Environment') {
             steps {
-                echo '📦 Checking out code from Git...'
-                checkout scm
-                sh 'git fetch --all'
-                sh 'git reset --hard origin/${BRANCH_NAME}'
-                sh 'git log -1 --oneline'
+                script {
+                    // Create a virtual environment with the project name (Retail pipeline)
+                    sh 'python3 -m venv retail_pipeline_venv'
+                    
+                    // Upgrade pip and install pipenv in the virtual environment
+                    sh './retail_pipeline_venv/bin/pip install --upgrade pip'
+                    sh './retail_pipeline_venv/bin/pip install pipenv'
+                }
             }
         }
 
-        stage('Setup Environment') {
+        stage('Install Dependencies') {
             steps {
-                echo '⚙️ Creating virtual environment and installing dependencies...'
-                sh '''
-                    ${PYTHON} -m venv .venv
-                    .venv/bin/pip install --upgrade pip
-                    .venv/bin/pip install pipenv
-                    ${PIPENV_PATH} install --dev
-                '''
+                script {
+                    // Install your project dependencies (e.g., requirements.txt or Pipfile)
+                    sh './retail_pipeline_venv/bin/pipenv install'
+                }
             }
         }
 
-        stage('Run Tests') {
+        stage('Test') {
             steps {
-                echo '🧪 Running Pytest on Spark tests...'
-                sh '''
-                    export JAVA_HOME=${JAVA_HOME}
-                    export PATH=$JAVA_HOME/bin:$PATH
-                    ${PIPENV_PATH} run pytest
-                '''
+                script {
+                    // Ensure JAVA_HOME is set for PySpark to work
+                    sh 'echo $JAVA_HOME'
+                    sh 'echo $PATH'
+                    
+                    // Run tests (assuming you are using pytest for tests)
+                    sh './retail_pipeline_venv/bin/pipenv run pytest'
+                }
             }
         }
 
         stage('Package') {
             steps {
-                echo '📦 Zipping project for packaging...'
-                sh 'zip -r retail_project_package.zip . -x ".venv/*" "*.git*"'
+                // Create the zip file but exclude the venv directory
+                sh 'zip -r retailproject.zip . -x "retail_pipeline_venv/*"'
             }
         }
 
         stage('Deploy') {
             steps {
-                echo '🚀 Deployment stage placeholder...'
-                // Add your actual deployment logic here
-                sh 'echo "Deployed RetailProject build from branch ${BRANCH_NAME}"'
+                // Add deployment steps here (e.g., deploy to a server or cloud)
+                sh '''
+                    sshpass -p $LABS_PSW scp -o StrictHostKeyChecking=no -r \
+                    retailproject.zip $LABS_USR@g02.itversity.com:/home/itv012419/retailproject
+                '''
             }
         }
     }
-
-    post {
-        success {
-            echo '✅ Build, Test & Deploy completed successfully.'
-        }
-        failure {
-            echo '❌ Build or tests failed. Please check logs.'
-        }
-    }
 }
-  
